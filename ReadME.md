@@ -43,3 +43,5 @@ Buscar y eliminar interactivo:
 ```bash
 python3 buscar_duplicados.py ruta-carpeta1 ruta-carpeta2
 ```
+
+    El repo cuenta con un archivo *ejemplo.zip* en el cual podras encontras dos directorios que te serviran de ejemplo para probar la funcionalidades de este script.

@@ -1,60 +1,86 @@
+# Aqui importamos los modulos estandar de python necesarios
 import os
 import hashlib
-import argparse
+import argparse     # Crear interfaces de línea de comandos
 
-def calcular_hash(filepath, chunk_size=8192):
-    """Calcula el hash SHA-256 de un archivo en bloques."""
-    sha256 = hashlib.sha256()
+def procesar_argumentos():
+    # Objeto que se encarga de procesar los argumentos
+    parser = argparse.ArgumentParser(
+        description="Busca archivos duplicados en dos directorios comparando su contenido."
+    )
+    parser.add_argument("directorio1", help="Primer directorio a analizar")
+    parser.add_argument("directorio2", help="Segundo directorio a analizar")
+    parser.add_argument("--solo-listar", action="store_true",
+                        help="Solo mostrar duplicados sin ofrecer opción de eliminar")
+    
+    # Leo, valido y convierto los argumentos del terminal en un objeto
+    args = parser.parse_args()
+    
+    # Valido existencia de ambos directorios
+    if not os.path.isdir(args.directorio1) or not os.path.isdir(args.directorio2):
+        print(" ❌ Ambos caminos deben ser directorios válidos.")
+        return
+    return args
+
+# Tamaño común de buffer 8KB (2^13)
+def calcular_hash(ruta_del_archivo, tamanio_de_bloque=8192):
+    """Calcula el hash SHA-256 de UN(1) archivo en bloques."""
+    # Inicializo el objeto hash vacio, por medio de la función sha256() 
+    objeto = hashlib.sha256()
     try:
-        with open(filepath, 'rb') as f:
-            while chunk := f.read(chunk_size):
-                sha256.update(chunk)
-        return sha256.hexdigest()
+        # Abro archivo para lectura binaria
+        with open(ruta_del_archivo, 'rb') as f:
+            # := Asigna y evalúa al mismo tiempo, valido desde la version 3.8 de py , sino deberia asignar antes y despues del mientras
+            while bloque := f.read(tamanio_de_bloque):
+                objeto.update(bloque)
+        return objeto.hexdigest()
     except Exception as e:
-        print(f"[ERROR] No se pudo leer {filepath}: {e}")
+        print(f"[ERROR] No se pudo leer {ruta_del_archivo}: {e}")
         return None
 
 def obtener_archivos_con_hashes(directorio):
-    """Obtiene un diccionario de {ruta: hash} para todos los archivos en el directorio dado."""
-    archivos_hash = {}
+    """Obtiene un diccionario de {"ruta_completa": hash_archivo} para todos los archivos en el directorio dado."""
+    dic_archivos_hash = {}
     for raiz, _, archivos in os.walk(directorio):
         for archivo in archivos:
-            ruta = os.path.join(raiz, archivo)
-            hash_archivo = calcular_hash(ruta)
+            ruta_completa = os.path.join(raiz, archivo)
+            hash_archivo = calcular_hash(ruta_completa)
             if hash_archivo:
-                archivos_hash[ruta] = hash_archivo
-    return archivos_hash
+                dic_archivos_hash[ruta_completa] = hash_archivo
+
+    return dic_archivos_hash
 
 def buscar_duplicados(dir1, dir2):
     """Busca archivos duplicados entre dos directorios comparando sus hashes."""
-    archivos1 = obtener_archivos_con_hashes(dir1)
-    archivos2 = obtener_archivos_con_hashes(dir2)
+    dic_archivos1 = obtener_archivos_con_hashes(dir1)
+    dic_archivos2 = obtener_archivos_con_hashes(dir2)
 
-    hash_to_rutas2 = {}
-    for ruta2, hash_val in archivos2.items():
-        hash_to_rutas2.setdefault(hash_val, []).append(ruta2)
+    hash_lista_de_rutas2 = {}
+    for ruta_en_2, valor_hash in dic_archivos2.items():
+        # Genero diccionario de CLAVE valor_hash y VALOR lista de rutas de archivos con ese valor_hash (Diccionario invertido de hashes a rutas)
+        hash_lista_de_rutas2.setdefault(valor_hash, []).append(ruta_en_2)
 
     duplicados = []
-    for ruta1, hash1 in archivos1.items():
-        rutas2 = hash_to_rutas2.get(hash1, [])
+    for ruta_en_1, valor_hash_de_1 in dic_archivos1.items():
+        # Obtengo lista de rutas en 2 segun valor de hash de 1
+        rutas2 = hash_lista_de_rutas2.get(valor_hash_de_1, [])
         for ruta2 in rutas2:
-            duplicados.append((ruta1, ruta2))
-    
-    nombre_carpeta = (dir1, dir2)
+            duplicados.append((ruta_en_1, ruta2))
 
-    return duplicados, *nombre_carpeta
+    return duplicados
 
-def mostrar_menu_y_eliminar(duplicados, solo_listar=False, dir1=None, dir2=None):
-    """Muestra los duplicados y permite al usuario decidir cuál eliminar (si no está en modo solo lectura)."""
-    print("\n🔍 Archivos duplicados encontrados:\n")
+def mostrar_menu_y_eliminar(duplicados, solo_listar=False, dir1_print=None, dir2_print=None):
+    """Muestra los duplicados y permite al usuario decidir cuál eliminar (si no está en modo solo listar)."""
+    print("\n 📄 Archivos duplicados encontrados:\n")
 
-    if dir1 and dir2:
-        print(f"  [1]{dir1}  ⇆  [2]{dir2}")
+    if dir1_print and dir2_print:
+        print(f" 📂  [1]{dir1_print}  ⇆  [2]{dir2_print}")
 
     for i, (f1, f2) in enumerate(duplicados, 1):
-        print(f"{i}. {os.path.basename(f1)}  ⟷  {os.path.basename(f2)}", end="")
+        print(f" {i}. {os.path.basename(f1)}  ⟷  {os.path.basename(f2)}", end="")
 
         if solo_listar:
+            print("")
             continue
 
         bandera=True
@@ -80,75 +106,63 @@ def mostrar_menu_y_eliminar(duplicados, solo_listar=False, dir1=None, dir2=None)
             else:
                 print("   ❌  Opción inválida..." , end="")
 
+def cierre_final(se_muestra_o_no):
+    if se_muestra_o_no == False :
+        print("\nThank you for supporting")
+        print("Sustainable software practices")
+        print("""─────────────────────░███░
+────────────────────░█░░░█░
+───────────────────░█░░░░░█░
+──────────────────░█░░░░░█░
+───────────░░░───░█░░░░░░█░
+──────────░███░──░█░░░░░█░
+────────░██░░░██░█░░░░░█░
+───────░█░░█░░░░██░░░░░█░
+─────░██░░█░░░░░░█░░░░█░
+────░█░░░█░░░░░░░██░░░█░
+───░█░░░░█░░░░░░░░█░░░█░
+───░█░░░░░█░░░░░░░░█░░░█░
+───░█░░█░░░█░░░░░░░░█░░█░
+──░█░░░█░░░░██░░░░░░█░░█░
+──░█░░░░█░░░░░██░░░█░░░█░
+──░█░█░░░█░░░░░░███░░░░█░
+─░█░░░█░░░██░░░░░█░░░░░█░
+─░█░░░░█░░░░█████░░░░░█░
+─░█░░░░░█░░░░░░░█░░░░░█░
+─░█░█░░░░██░░░░█░░░░░█░
+──░█░█░░░░░████░░░░██░
+──░█░░█░░░░░░░█░░██░█░
+───░█░░██░░░██░░█░░░█░
+────░██░░███░░██░█░░█░
+─────░██░░░███░░░█░░░█░
+───────░███░░░░░░█░░░█░
+───────░█░░░░░░░░█░░░█░
+───────░█░░░░░░░░░░░░█░
+───────░█░░░░░░░░░░░░░█░
+───────░█░░░░░░░░░░░░░█░
+─████──░█░████░░░░░░░░█░
+─█──█──████──████░░░░░█░
+─█──█──█──█──█──████████
+─█──█──████──█──█──────█
+─█──█──█──█────██──██──█
+─█──████──█──█──█──────█
+─█─────█──█──█──█──█████
+─███████──████──█──────█
+───────████──██████████
+""")
+    else:
+        print("\n\n📣 NOTA: Ganate un like eliminando tus archivos duplicados.\n")
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="Busca archivos duplicados en dos directorios comparando su contenido."
-    )
-    parser.add_argument("directorio1", help="Primer directorio a analizar")
-    parser.add_argument("directorio2", help="Segundo directorio a analizar")
-    parser.add_argument("--solo-listar", action="store_true",
-                        help="Solo mostrar duplicados sin ofrecer opción de eliminar")
-
-    args = parser.parse_args()
-    print(f"{args.directorio1}")
-    nombre_carpeta = (args.directorio1, args.directorio2)
-    if not os.path.isdir(args.directorio1) or not os.path.isdir(args.directorio2):
-        print("❌ Ambos caminos deben ser directorios válidos.")
-        return
-
-    print("🔎 Buscando duplicados...")
-    
-    duplicados, dir1, dir2 = buscar_duplicados(args.directorio1, args.directorio2)
+    argumentos = procesar_argumentos()
+    print(" 🔎 Buscando duplicados...") 
+    duplicados = buscar_duplicados(argumentos.directorio1, argumentos.directorio2)
 
     if not duplicados:
-        print("✅ No se encontraron archivos duplicados.")
+        print(" ✅ No se encontraron archivos duplicados.")
     else:
-        mostrar_menu_y_eliminar(duplicados, solo_listar=args.solo_listar,
-            dir1=dir1,
-            dir2=dir2)
-        
-        print("""────────────────────░███░
-───────────────────░█░░░█░
-──────────────────░█░░░░░█░
-─────────────────░█░░░░░█░
-──────────░░░───░█░░░░░░█░
-─────────░███░──░█░░░░░█░
-───────░██░░░██░█░░░░░█░
-──────░█░░█░░░░██░░░░░█░
-────░██░░█░░░░░░█░░░░█░
-───░█░░░█░░░░░░░██░░░█░
-──░█░░░░█░░░░░░░░█░░░█░
-──░█░░░░░█░░░░░░░░█░░░█░
-──░█░░█░░░█░░░░░░░░█░░█░
-─░█░░░█░░░░██░░░░░░█░░█░
-─░█░░░░█░░░░░██░░░█░░░█░
-─░█░█░░░█░░░░░░███░░░░█░
-░█░░░█░░░██░░░░░█░░░░░█░
-░█░░░░█░░░░█████░░░░░█░
-░█░░░░░█░░░░░░░█░░░░░█░
-░█░█░░░░██░░░░█░░░░░█░
-─░█░█░░░░░████░░░░██░
-─░█░░█░░░░░░░█░░██░█░
-──░█░░██░░░██░░█░░░█░
-───░██░░███░░██░█░░█░
-────░██░░░███░░░█░░░█░
-──────░███░░░░░░█░░░█░
-──────░█░░░░░░░░█░░░█░
-──────░█░░░░░░░░░░░░█░
-──────░█░░░░░░░░░░░░░█░
-──────░█░░░░░░░░░░░░░█░
-████──░█░████░░░░░░░░█░
-█──█──████──████░░░░░█░
-█──█──█──█──█──████████
-█──█──████──█──█──────█
-█──█──█──█────██──██──█
-█──████──█──█──█──────█
-█─────█──█──█──█──█████
-███████──████──█──────█
-──────████──██████████
-""")
-        print("Sustainable software practices")
+        mostrar_menu_y_eliminar(duplicados, solo_listar=argumentos.solo_listar, dir1_print=argumentos.directorio1, dir2_print=argumentos.directorio2)
+        cierre_final(argumentos.solo_listar)     
 
 if __name__ == "__main__":
     main()
-
