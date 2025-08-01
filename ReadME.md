@@ -25,7 +25,7 @@ Este proyecto está relacionado con el concepto de Green Software porque apunta 
 
 - Más consumo de energía (especialmente en discos físicos o almacenamiento en la nube)
 
--  Más uso de recursos de hardware (lo que, a gran escala, también tiene impacto ambiental)
+- Más uso de recursos de hardware (lo que, a gran escala, también tiene impacto ambiental)
 
 - Menor eficiencia general del sistema
 
@@ -37,11 +37,11 @@ ___
 
 Listar duplicados sin eliminar nada:
 ```bash
-python3 buscar_duplicados.py ruta-carpeta1 ruta-carpeta2 --solo-listar
+python3 buscar_duplicados.py carpeta1 carpeta2 --solo-listar
 ```
 Buscar y eliminar interactivo:
 ```bash
-python3 buscar_duplicados.py ruta-carpeta1 ruta-carpeta2
+python3 buscar_duplicados.py carpeta1 carpeta2
 ```
 
-    El repo cuenta con un archivo *ejemplo.zip* en el cual podras encontras dos directorios que te serviran de ejemplo para probar la funcionalidades de este script.
+**NOTA:** El repo cuenta con un archivo *ejemplo.zip* en el cual podras encontras dos directorios que te serviran de ejemplo para probar la funcionalidades de este script.

@@ -2,6 +2,7 @@
 import os
 import hashlib
 import argparse     # Crear interfaces de línea de comandos
+import time
 
 def procesar_argumentos():
     # Objeto que se encarga de procesar los argumentos
@@ -50,41 +51,87 @@ def obtener_archivos_con_hashes(directorio):
 
     return dic_archivos_hash
 
-def buscar_duplicados(dir1, dir2):
-    """Busca archivos duplicados entre dos directorios comparando sus hashes."""
+def obtener_duplicados_en_directorio(dic_del_directorio):
+    dic_hash_lista_de_rutas = {}
+    for ruta_en_directorio, valor_hash in dic_del_directorio.items():
+        # Genero diccionario de CLAVE valor_hash y VALOR lista de rutas de archivos con ese valor_hash (Diccionario invertido de hashes a rutas en 1)
+        dic_hash_lista_de_rutas.setdefault(valor_hash, []).append(ruta_en_directorio)
+    return dic_hash_lista_de_rutas
+
+def obtener_duplicados_entre_directorios(dic_hash_lista_de_rutas1, dic_hash_lista_de_rutas2):
+    duplicados_entre = []
+    hashes_comunes = set(dic_hash_lista_de_rutas1.keys()) & set(dic_hash_lista_de_rutas2.keys())
+    for h in hashes_comunes:
+        for r1 in dic_hash_lista_de_rutas1[h]:
+            for r2 in dic_hash_lista_de_rutas2[h]:
+                duplicados_entre.append((r1, r2)) # si quiero mostrar el valor hash deberia agregar ->, hash <-
+    return duplicados_entre
+
+def hay_duplicados(diccionario):
+    return any(len(rutas) > 1 for rutas in diccionario.values())
+
+def buscar_duplicados_en_directorio(dir1, dir2):
     dic_archivos1 = obtener_archivos_con_hashes(dir1)
-    dic_archivos2 = obtener_archivos_con_hashes(dir2)
+    dic_hash_lista_de_rutas1 = obtener_duplicados_en_directorio(dic_archivos1)
 
-    hash_lista_de_rutas2 = {}
-    for ruta_en_2, valor_hash in dic_archivos2.items():
-        # Genero diccionario de CLAVE valor_hash y VALOR lista de rutas de archivos con ese valor_hash (Diccionario invertido de hashes a rutas)
-        hash_lista_de_rutas2.setdefault(valor_hash, []).append(ruta_en_2)
+    dic_archivos2 = obtener_archivos_con_hashes(dir2) 
+    dic_hash_lista_de_rutas2 = obtener_duplicados_en_directorio(dic_archivos2)
+   
+    return [dic_hash_lista_de_rutas1, dic_hash_lista_de_rutas2]
 
-    duplicados = []
-    for ruta_en_1, valor_hash_de_1 in dic_archivos1.items():
-        # Obtengo lista de rutas en 2 segun valor de hash de 1
-        rutas2 = hash_lista_de_rutas2.get(valor_hash_de_1, [])
-        for ruta2 in rutas2:
-            duplicados.append((ruta_en_1, ruta2))
+def buscar_duplicados_entre_directorios(dic_hash_lista_de_rutas1, dic_hash_lista_de_rutas2):
+    lista_duplicado_entre_directorios = []
+    lista_duplicado_entre_directorios = obtener_duplicados_entre_directorios(dic_hash_lista_de_rutas1, dic_hash_lista_de_rutas2)
 
-    return duplicados
+    return lista_duplicado_entre_directorios
 
-def mostrar_menu_y_eliminar(duplicados, solo_listar=False, dir1_print=None, dir2_print=None):
-    """Muestra los duplicados y permite al usuario decidir cuál eliminar (si no está en modo solo listar)."""
-    print("\n 📄 Archivos duplicados encontrados:\n")
+def tratar_duplicados_en_directorio(dic_hash_lista_de_rutas, solo_listar=True):
+    for hash_valor, lista_rutas in dic_hash_lista_de_rutas.items():
+        if len(lista_rutas) > 1:
+            time.sleep(1)
+            print(f" 🔁 Duplicados encontrados para hash: {hash_valor}")
+            for indice, ruta in enumerate(lista_rutas, 1):
+                print(f"  [{indice}] {ruta}")
+            
+            if solo_listar:
+                print("  (Solo listado activado, no se eliminará nada)")
+                continue  # Solo mostramos, no borramos
 
-    if dir1_print and dir2_print:
-        print(f" 📂  [1]{dir1_print}  ⇆  [2]{dir2_print}")
+            # Elegir cuál conservar
+            try:
+                opcion = int(input(" Ingrese el número del archivo que desea conservar: "))
+                if opcion < 1 or opcion > len(lista_rutas):
+                    print(" ❌ Opción inválida. Se conservará el primero por defecto.")
+                    opcion = 1
+            except ValueError:
+                print(" ❌ Entrada no válida. Se conservará el primero por defecto.")
+                opcion = 1
 
-    for i, (f1, f2) in enumerate(duplicados, 1):
-        print(f" {i}. {os.path.basename(f1)}  ⟷  {os.path.basename(f2)}", end="")
+            ruta_a_conservar = lista_rutas[(opcion-1)]
+            rutas_a_eliminar = [ruta for indice, ruta in enumerate(lista_rutas) if indice != (opcion-1)]
+
+            for ruta in rutas_a_eliminar:
+                try:
+                    os.remove(ruta)
+                    print(f" 🗑️  Eliminado: {ruta}")
+                except Exception as e:
+                    print(f" ⚠️  Error al eliminar {ruta}: {e}")
+
+            # Actualizamos el diccionario con solo el que se conserva, resultado dicc. sin duplicados
+            dic_hash_lista_de_rutas[hash_valor] = [ruta_a_conservar]
+
+    return dic_hash_lista_de_rutas
+
+def tratar_duplicados_entre_directorio(duplicados_entre, solo_listar=True):
+    for (f1, f2) in (duplicados_entre):
+        time.sleep(1)
+        print(f"  {os.path.basename(f1)}  ⟷  {os.path.basename(f2)}", end="")
 
         if solo_listar:
             print("")
             continue
 
-        bandera=True
-        while bandera:
+        while True:
             eleccion = input("   ¿Cuál deseas eliminar? ➟ (1/2/0): ").strip()
             if eleccion == '1':
                 try:
@@ -104,7 +151,18 @@ def mostrar_menu_y_eliminar(duplicados, solo_listar=False, dir1_print=None, dir2
                 print("   ⏩   Ignorados.")
                 break
             else:
-                print("   ❌  Opción inválida..." , end="")
+                print("   ❌  Opción inválida...", end="")
+
+def mostrar_duplicados_en_directorio(dic_duplicados, solo_listar=False, directorio=None):
+    time.sleep(2)
+    print(f" 📁 Revisando duplicados en: {directorio}")
+    resultado = tratar_duplicados_en_directorio(dic_duplicados, solo_listar=solo_listar)
+    return resultado
+
+def mostrar_duplicados_entre_directorios(duplicados_entre, solo_listar=False, dir1=None, dir2=None):
+    time.sleep(2)
+    print(f" 📂 Comparando entre:  [1] {dir1}  ⇆  [2] {dir2}")
+    tratar_duplicados_entre_directorio(duplicados_entre, solo_listar=solo_listar)
 
 def cierre_final(se_muestra_o_no):
     if se_muestra_o_no == False :
@@ -151,18 +209,43 @@ def cierre_final(se_muestra_o_no):
 ───────████──██████████
 """)
     else:
-        print("\n\n📣 NOTA: Ganate un like eliminando tus archivos duplicados.\n")
+        print("\n📣 NOTA: Ganate un like eliminando tus archivos duplicados.\n")
 
 def main():
     argumentos = procesar_argumentos()
-    print(" 🔎 Buscando duplicados...") 
-    duplicados = buscar_duplicados(argumentos.directorio1, argumentos.directorio2)
+    if not argumentos:
+        return
 
-    if not duplicados:
-        print(" ✅ No se encontraron archivos duplicados.")
+    print(" 🔎 Buscando duplicados...") 
+    duplicados = buscar_duplicados_en_directorio(argumentos.directorio1, argumentos.directorio2)
+    # Chequeo duplicados de forma real, o sea mas de 1 (una) ruta por hash
+    if not (hay_duplicados(duplicados[0])):
+        time.sleep(2)  
+        print(f" ✅ No se encontraron archivos duplicados en {argumentos.directorio1}.")
     else:
-        mostrar_menu_y_eliminar(duplicados, solo_listar=argumentos.solo_listar, dir1_print=argumentos.directorio1, dir2_print=argumentos.directorio2)
-        cierre_final(argumentos.solo_listar)     
+        duplicados[0] = mostrar_duplicados_en_directorio(duplicados[0], solo_listar=argumentos.solo_listar, directorio=argumentos.directorio1)
+    # Chequeo duplicados de forma real, o sea mas de 1 (una) ruta por hash
+    if not (hay_duplicados(duplicados[1])):
+        time.sleep(2)  
+        print(f" ✅ No se encontraron archivos duplicados en {argumentos.directorio2}.")
+    else:
+        duplicados[1] = mostrar_duplicados_en_directorio(duplicados[1], solo_listar=argumentos.solo_listar, directorio=argumentos.directorio2)
+
+    duplicados = buscar_duplicados_entre_directorios(duplicados[0], duplicados[1])
+    # Chequeando duplicados de forma real, o sea mas de 1 (una) ruta por hash
+    if not (len(duplicados) > 0):
+        time.sleep(2)  
+        print(f" ✅ No se encontraron archivos duplicados entre {argumentos.directorio1} y {argumentos.directorio2}.")
+    else:        
+        # Mostrar duplicados entre directorios
+        mostrar_duplicados_entre_directorios(
+            duplicados,
+            solo_listar=argumentos.solo_listar,
+            dir1=argumentos.directorio1,
+            dir2=argumentos.directorio2
+        )
+
+    cierre_final(argumentos.solo_listar)    
 
 if __name__ == "__main__":
     main()
