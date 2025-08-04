@@ -2,3 +2,14 @@ __pycache__/
 ideas/
 carpeta1/
 carpeta2/
+
+agrupados_internos_carpeta1.txt
+conservados_carpeta1.txt
+conservados_carpeta2.txt
+duplicados_entre.txt
+hashes_carpeta1.txt
+hashes_carpeta1_raw.txt
+hashes_carpeta2.txt
+hashes_carpeta2_raw.txt
+usados_entre.txt
+
