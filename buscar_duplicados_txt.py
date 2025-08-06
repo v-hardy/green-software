@@ -1,6 +1,7 @@
 import os
 import hashlib
 import argparse
+import time
 
 def procesar_argumentos():
     parser = argparse.ArgumentParser(description="Detecta y elimina archivos duplicados entre dos carpetas.")
@@ -44,10 +45,7 @@ def hash_ya_procesado(hash_valor, archivo_salida):
                 return True
     return False
 
-def agrupar_por_hash_simple(archivo_entrada, archivo_salida):
-    if os.path.exists(archivo_salida):
-        os.remove(archivo_salida)
-
+def agrupar_por_hash_en_directorio(archivo_entrada, archivo_salida):
     with open(archivo_entrada, "r", encoding="utf-8") as f1:
         for linea1 in f1:
             partes1 = linea1.strip().split("|")
@@ -57,163 +55,42 @@ def agrupar_por_hash_simple(archivo_entrada, archivo_salida):
             if hash_ya_procesado(hash1, archivo_salida):
                 # Pasa al siguiente si ya se proceso previamente
                 continue
-            
-            # tratamiento en caso de varios archivos con mismo hash
-            if os.path.exists("temp_rutas.txt"):
-                os.remove("temp_rutas.txt")
+            else:
+                # tratamiento en caso de varios archivos con mismo hash
+                with open("temp_rutas_del_hash.txt", "w", encoding="utf-8") as temp:
+                    temp.write(ruta1 + "\n")
+                    with open(archivo_entrada, "r", encoding="utf-8") as f2:
+                        # Segunda pasada para detectar archivos con hash1
+                        for linea2 in f2:
+                            partes2 = linea2.strip().split("|")
+                            if len(partes2) != 2:
+                                continue
+                            ruta2, hash2 = partes2
+                            if hash1 == hash2 and ruta2 != ruta1:
+                                temp.write(ruta2 + "\n")
+                cantidad = 0
+                with open("temp_rutas_del_hash.txt", "r", encoding="utf-8") as temp:
+                    for _ in temp:
+                        cantidad += 1
+                        # Optimizacion+++
+                        if cantidad > 1:
+                            break
+                if cantidad > 1:
+                    with open("temp_rutas_del_hash.txt", "r", encoding="utf-8") as temp:
+                        linea_salida = hash1 + "|"
+                        for ruta in temp:
+                            # concateno todas las rutas y almaceno en linea_salida
+                            linea_salida += ruta.strip() + ";"
+                        with open(archivo_salida, "a", encoding="utf-8") as salida:
+                            salida.write(linea_salida.strip(";") + "\n")    # quito el último ; y agrego un salto de línea.
+                if os.path.exists("temp_rutas_del_hash.txt"):
+                    os.remove("temp_rutas_del_hash.txt")
 
-            with open("temp_rutas.txt", "w", encoding="utf-8") as temp:
-                temp.write(ruta1 + "\n")
-                with open(archivo_entrada, "r", encoding="utf-8") as f2:
-                    # Segunda pasada para detectar archivos con hash1
-                    for linea2 in f2:
-                        partes2 = linea2.strip().split("|")
-                        if len(partes2) != 2:
-                            continue
-                        ruta2, hash2 = partes2
-                        if hash1 == hash2 and ruta2 != ruta1:
-                            temp.write(ruta2 + "\n")
+def marcar_como_emparejado(ruta, archivo_usados):
+    with open(archivo_usados, "a", encoding="utf-8") as f:
+        f.write(ruta + "\n")
 
-            cantidad = 0
-            with open("temp_rutas.txt", "r", encoding="utf-8") as temp:
-                for _ in temp:
-                    cantidad += 1
-
-            if cantidad > 1:
-                with open("temp_rutas.txt", "r", encoding="utf-8") as temp:
-                    linea_salida = hash1 + "|"
-                    for ruta in temp:
-                        # concateno todas las rutas y almaceno en linea_salida
-                        linea_salida += ruta.strip() + ";"
-                    with open(archivo_salida, "a", encoding="utf-8") as salida:
-                        salida.write(linea_salida.strip(";") + "\n")
-
-            if os.path.exists("temp_rutas.txt"):
-                os.remove("temp_rutas.txt")
-
-def registrar_eliminacion(ruta):
-    with open("registro_eliminados.txt", "a", encoding="utf-8") as log:
-        log.write("ELIMINADO: " + ruta + "\n")
-
-def eliminar_duplicados_internos_agrupado_simple(archivo_agrupado, solo_listar, archivo_conservados):
-    archivo_hashes_duplicados = "hashes_duplicados.txt"
-
-    if os.path.exists(archivo_conservados):
-        os.remove(archivo_conservados)
-    if os.path.exists(archivo_hashes_duplicados):
-        os.remove(archivo_hashes_duplicados)
-
-    if not os.path.exists(archivo_agrupado):
-        return
-
-    with open(archivo_agrupado, "r", encoding="utf-8") as f:
-        for linea in f:
-            linea = linea.strip()
-            if not linea:
-                continue
-            partes = linea.split("|")
-            if len(partes) != 2:
-                continue
-
-            hash_valor, rutas_str = partes
-
-            # Registrar hash duplicado
-            with open(archivo_hashes_duplicados, "a", encoding="utf-8") as h:
-                h.write(hash_valor + "\n")
-
-            print(f"\n🔁 Hash: {hash_valor}")
-
-            # Procesar rutas sin usar listas ni diccionarios
-            ruta_actual = ""
-            contador = 1
-
-            # Mostrar las rutas para que el usuario elija
-            for c in rutas_str + ";":  # Agregar ';' para terminar última ruta
-                if c != ";":
-                    ruta_actual += c
-                else:
-                    print(f"  [{contador}] {ruta_actual}")
-                    contador += 1
-                    ruta_actual = ""
-
-            if solo_listar:
-                print("  (Solo listado activado, no se eliminará nada.)")
-                # Guardar la primera ruta conservada
-                primera_ruta = ""
-                for c in rutas_str + ";":
-                    if c != ";":
-                        primera_ruta += c
-                    else:
-                        with open(archivo_conservados, "a", encoding="utf-8") as cfile:
-                            cfile.write(primera_ruta + "\n")
-                        break
-                continue
-
-            eleccion = input("👉 ¿Cuál archivo deseas conservar? (número, por defecto 1): ").strip()
-            if not eleccion.isdigit():
-                eleccion = "1"
-
-            ruta_actual = ""
-            contador = 1
-            for c in rutas_str + ";":
-                if c != ";":
-                    ruta_actual += c
-                else:
-                    if str(contador) == eleccion:
-                        with open(archivo_conservados, "a", encoding="utf-8") as cfile:
-                            cfile.write(ruta_actual + "\n")
-                    else:
-                        try:
-                            os.remove(ruta_actual)
-                            registrar_eliminacion(ruta_actual)
-                            print(f"🗑️  Eliminado: {ruta_actual}")
-                        except Exception as e:
-                            print(f"⚠️  Error al eliminar {ruta_actual}: {e}")
-                    contador += 1
-                    ruta_actual = ""
-
-def hash_en_archivo(hash_valor, archivo):
-    if not os.path.exists(archivo):
-        return False
-    with open(archivo, "r", encoding="utf-8") as f:
-        for linea in f:
-            if linea.strip() == hash_valor:
-                return True
-    return False
-
-def ruta_en_archivo(ruta, archivo):
-    if not os.path.exists(archivo):
-        return False
-    with open(archivo, "r", encoding="utf-8") as f:
-        for linea in f:
-            if linea.strip() == ruta:
-                return True
-    return False
-
-def generar_hashes_final(archivo_raw, archivo_final, archivo_conservados):
-    if os.path.exists(archivo_final):
-        os.remove(archivo_final)
-
-    with open(archivo_final, "w", encoding="utf-8") as _:
-        pass  # crear archivo vacío
-
-    if not os.path.exists(archivo_conservados):
-        return
-
-    with open(archivo_raw, "r", encoding="utf-8") as f_raw:
-        for linea in f_raw:
-            partes = linea.strip().split("|")
-            if len(partes) != 2:
-                continue
-            ruta_raw, hash_raw = partes
-            with open(archivo_conservados, "r", encoding="utf-8") as f_cons:
-                for linea_cons in f_cons:
-                    if linea_cons.strip() == ruta_raw:
-                        with open(archivo_final, "a", encoding="utf-8") as out:
-                            out.write(f"{ruta_raw}|{hash_raw}\n")
-                        break
-
-def archivo_ya_usado(ruta, archivo_usados):
+def esta_emparejado(ruta, archivo_usados):
     if not os.path.exists(archivo_usados):
         return False
     with open(archivo_usados, "r", encoding="utf-8") as f:
@@ -222,85 +99,190 @@ def archivo_ya_usado(ruta, archivo_usados):
                 return True
     return False
 
-def registrar_usado(ruta, archivo_usados):
-    with open(archivo_usados, "a", encoding="utf-8") as f:
-        f.write(ruta + "\n")
-
-def buscar_duplicados_entre(archivo1, archivo2, salida, directorio1, directorio2):
-    usados = "usados_entre.txt"
-    if os.path.exists(salida):
-        os.remove(salida)
-    if os.path.exists(usados):
-        os.remove(usados)
-    print(f"\n📁 Procesando directorios: {directorio1} y {directorio2}...")
-    with open(archivo1, "r", encoding="utf-8") as f1:
-        for linea1 in f1:
-            partes1 = linea1.strip().split("|")
+def agrupar_por_hash_entre_directorios(conservados_txt_de_dir1, conservados_txt_de_dir2, salida):
+    emparejados = "temp_emparejados_entre_directorios.txt"
+    if os.path.exists(emparejados):
+        os.remove(emparejados)
+    
+    with open(conservados_txt_de_dir1, "r", encoding="utf-8") as conservados1:
+        for conservado1 in conservados1:
+            partes1 = conservado1.strip().split("|")
             if len(partes1) != 2:
                 continue
             ruta1, hash1 = partes1
-            with open(archivo2, "r", encoding="utf-8") as f2:
-                for linea2 in f2:
-                    partes2 = linea2.strip().split("|")
+            with open(conservados_txt_de_dir2, "r", encoding="utf-8") as conservados2:
+                for conservado2 in conservados2:
+                    partes2 = conservado2.strip().split("|")
                     if len(partes2) != 2:
                         continue
                     ruta2, hash2 = partes2
-                    if hash1 == hash2 and not archivo_ya_usado(ruta2, usados):
+                    if hash1 == hash2 and not esta_emparejado(ruta2, emparejados):
                         with open(salida, "a", encoding="utf-8") as out:
                             out.write(f"{ruta1}|{ruta2}|{hash1}\n")
-                        registrar_usado(ruta2, usados)
-                        break
+                        marcar_como_emparejado(ruta2, emparejados)
+                        break    # salir del for de dir2 y continuar con la siguiente ruta1
+        if os.path.exists(emparejados):
+            os.remove(emparejados)
 
-def eliminar_duplicados_entre(archivo_duplicados, solo_listar):
-    if not os.path.exists(archivo_duplicados):
+def registrar_eliminacion(ruta):
+    with open("registro_eliminados.txt", "a", encoding="utf-8") as log:
+        log.write("ELIMINADO: " + ruta + "\n")
+
+def eliminar_duplicados_del_directorio(directorio, solo_listar, hashes_agrupados_txt, archivo_conservados):
+    if not os.path.exists(hashes_agrupados_txt):
+        time.sleep(2)  
+        print(f"✅ No se encontraron archivos duplicados en {directorio}.")
         return
+# de aca para abajo
+    with open(hashes_agrupados_txt, "r", encoding="utf-8") as f:
+        for linea in f:
+            linea = linea.strip()    #.strip() elimina espacios en blanco al inicio y al final, incluyendo saltos de línea (\n), tabulaciones, etc.
+            if not linea:
+                # si la línea no tiene contenido útil, salto a la siguiente
+                continue
+
+            partes = linea.split("|")
+            if len(partes) != 2:
+                continue
+# hasta aca trato la lectura del txt y devuelvo partes
+            hash_valor, rutas_str = partes
+            rutas = rutas_str.split(";")    # Subdividimos la cadena rutas_str en las subcadenas rutas.
+
+            time.sleep(1) 
+            print(f"\n🔁 Hash: {hash_valor}")
+
+            # Muestro las rutas
+            for i, ruta in enumerate(rutas, start=1):
+                time.sleep(1) 
+                print(f"  [{i}] {ruta}")
+                if solo_listar:
+                    with open(archivo_conservados, "a", encoding="utf-8") as conservado:
+                        conservado.write(ruta + "|" + hash_valor + "\n")
+
+            if solo_listar:
+                time.sleep(1) 
+                print("  (Solo listado activado, no se eliminará nada.)")
+                continue
+
+            eleccion = input("👉 ¿Cuál archivo deseas conservar? (número, por defecto 1): ").strip()
+            if not eleccion.isdigit() or not (1 <= int(eleccion) <= len(rutas)):
+                eleccion = "1"
+
+            eleccion = int(eleccion)
+
+            for i, ruta in enumerate(rutas, start=1):
+                if i == eleccion:
+                    with open(archivo_conservados, "a", encoding="utf-8") as conservado:
+                        conservado.write(ruta + "|" + hash_valor + "\n")
+                else:
+                    try:
+                        os.remove(ruta)
+                        registrar_eliminacion(ruta)
+                        print(f"🗑️  Eliminado: {ruta}")
+                    except Exception as e:
+                        print(f"⚠️  Error al eliminar {ruta}: {e}")
+
+def eliminar_duplicados_entre_directorios(directorio1, directorio2, solo_listar, archivo_duplicados):
+    if not os.path.exists(archivo_duplicados):
+        time.sleep(2)  
+        print(f"✅ No se encontraron archivos duplicados entre {directorio1} y {directorio2}.")
+        return
+
     with open(archivo_duplicados, "r", encoding="utf-8") as f:
         for linea in f:
             partes = linea.strip().split("|")
             if len(partes) != 3:
                 continue
             f1, f2, hash_valor = partes
-            print(f"\n🔁 Duplicado entre carpetas (hash: {hash_valor})")
+            print(f"\n🔁 Hash: {hash_valor}")
             print(f"  [1] {f1}")
             print(f"  [2] {f2}")
             if solo_listar:
                 print("  (Solo listado activado, no se eliminará nada.)")
                 continue
-            eleccion = input("👉 ¿Cuál deseas eliminar? (1/2/0 para ignorar): ").strip()
-            if eleccion == "1":
-                try:
-                    os.remove(f1)
-                    registrar_eliminacion(f1)
-                    print(f"🗑️  Eliminado: {f1}")
-                except Exception as e:
-                    print(f"⚠️  Error al eliminar {f1}: {e}")
-            elif eleccion == "2":
+
+            eleccion = input("👉 ¿Cuál archivo deseas conservar? (número, por defecto 0 para ignorar): ").strip()
+            if not eleccion.isdigit() or not (0 <= int(eleccion) <= 2):
+                eleccion = "0"
+
+            eleccion = int(eleccion)
+
+            if eleccion == 1:
                 try:
                     os.remove(f2)
                     registrar_eliminacion(f2)
                     print(f"🗑️  Eliminado: {f2}")
                 except Exception as e:
                     print(f"⚠️  Error al eliminar {f2}: {e}")
+            elif eleccion == 2:
+                try:
+                    os.remove(f1)
+                    registrar_eliminacion(f1)
+                    print(f"🗑️  Eliminado: {f1}")
+                except Exception as e:
+                    print(f"⚠️  Error al eliminar {f1}: {e}")
             else:
                 print("⏩  Ignorado.")
 
+def hash_en_archivo(hash_valor, archivo_txt):
+    if not os.path.exists(archivo_txt):
+        return False
+    with open(archivo_txt, "r", encoding="utf-8") as f:
+        for linea in f:
+
+            linea = linea.strip()    
+            if not linea:
+                continue
+
+            partes = linea.split("|")
+            if len(partes) != 2:
+                continue
+
+            linea_hash_valor, rutas_str = partes
+
+            if linea_hash_valor == hash_valor:
+                return True
+    return False
+
+def ruta_en_archivo(ruta, archivo_txt):
+    if not os.path.exists(archivo_txt):
+        return False
+    with open(archivo_txt, "r", encoding="utf-8") as f:
+        for linea in f:
+            linea = linea.strip()    
+            if not linea:
+                continue
+
+            partes = linea.split("|")
+            if len(partes) != 2:
+                continue
+
+            ruta_en_linea, linea_hash_valor = partes
+            if ruta_en_linea == ruta:
+                return True
+    return False
+
 def procesar_directorio(directorio, solo_listar):
-    raw = f"hashes_{directorio}_raw.txt"
-    agrupado = f"agrupados_internos_{directorio}.txt"
-    conservados = f"conservados_{directorio}.txt"
-    final = f"hashes_{directorio}.txt"
-    archivo_hashes_duplicados = "hashes_duplicados.txt"
-
+    time.sleep(1) 
+    print(f"\n📁 Iniciando procesamiento de {directorio}...")
     if not any(os.scandir(directorio)):
-        print(f"⚠️  El directorio '{directorio}' está vacío. Se omite.")
+        time.sleep(1) 
+        print(f"⚠️  El directorio '{directorio}' está vacío. Se omite busqueda de duplicados.")
         return
-
-    print(f"\n📁 Procesando {directorio}...")
-    # genero hash de todo el directorio
+    
+    raw = f"hashes_de_{directorio}.txt"
+    agrupados = f"hashes_de_{directorio}_duplicados.txt"
+    conservados = f"hashes_de_{directorio}_conservados.txt"
+    # Eliminar archivos previos si existen
+    for archivo in (raw, agrupados, conservados):
+        if os.path.exists(archivo):
+            os.remove(archivo)
+      
     generar_hashes(directorio, raw)
 
-    agrupar_por_hash_simple(raw, agrupado)
-    eliminar_duplicados_internos_agrupado_simple(agrupado, solo_listar, conservados)
+    agrupar_por_hash_en_directorio(raw, agrupados)
+
+    eliminar_duplicados_del_directorio(directorio, solo_listar, agrupados, conservados)
 
     # Agregar a conservados los archivos sin duplicados
     if os.path.exists(raw):
@@ -311,17 +293,33 @@ def procesar_directorio(directorio, solo_listar):
                     continue
                 ruta, hash_valor = partes
 
-                # Si hash no está en hashes_duplicados.txt, agregar ruta a conservados (si no está ya)
-                if not hash_en_archivo(hash_valor, archivo_hashes_duplicados):
-                    if not ruta_en_archivo(ruta, conservados):
-                        with open(conservados, "a", encoding="utf-8") as f_out:
-                            f_out.write(ruta + "\n")
+                # Si hash_valor no está en agrupados y ruta en no esta en conservados, agrego ruta+hash a conservados
+                if not hash_en_archivo(hash_valor, agrupados):
+                    if not ruta_en_archivo(ruta, conservados):  
+                        with open(conservados, "a", encoding="utf-8") as f_conservados:
+                            f_conservados.write(ruta + "|" + hash_valor + "\n")
 
-    generar_hashes_final(raw, final, conservados)
+def procesar_directorios(directorio1, directorio2, solo_listar):
+    time.sleep(1) 
+    print(f"\n📁 Iniciando procesamiento de directorios: {directorio1} y {directorio2}...")
+    for directorio in (directorio1, directorio2):
+        if not any(os.scandir(directorio)):
+            time.sleep(1) 
+            print(f"⚠️  El directorio '{directorio}' está vacío. Se omite proceso de comparacion entre directorios {directorio1} y {directorio2}.")
+            return
+    
+    conservados1 = f"hashes_de_{directorio1}_conservados.txt"
+    conservados2 = f"hashes_de_{directorio2}_conservados.txt"
+    duplicados_en_1y2 = f"duplicados_entre_directorios.txt"
+    if os.path.exists(duplicados_en_1y2):
+        os.remove(duplicados_en_1y2)
 
-    # Limpieza archivo temporal
-    # if os.path.exists(archivo_hashes_duplicados):
-    #     os.remove(archivo_hashes_duplicados)
+    agrupar_por_hash_entre_directorios(conservados1, conservados2, duplicados_en_1y2)
+        
+    eliminar_duplicados_entre_directorios(directorio1, directorio2, solo_listar, duplicados_en_1y2)    
+    
+    #deberia actualizar los conservados de cada directorio quitando los eliminados
+    #podria agregar para borrar .txt's por defecto en cuenta regresiva y con un ENTER interrumpir
 
 def main():
     argumentos = procesar_argumentos()
@@ -335,12 +333,13 @@ def main():
 
     procesar_directorio(argumentos.directorio2, argumentos.solo_listar)
 
-    buscar_duplicados_entre(f"hashes_{argumentos.directorio1}.txt", f"hashes_{argumentos.directorio2}.txt", "duplicados_entre.txt", argumentos.directorio1, argumentos.directorio2)
-    eliminar_duplicados_entre("duplicados_entre.txt", argumentos.solo_listar)
-
+    procesar_directorios(argumentos.directorio1, argumentos.directorio2, argumentos.solo_listar)
+ 
     if os.path.exists("registro_eliminados.txt"):
+        time.sleep(1)
         print("\n✅ Proceso completo. Consulta 'registro_eliminados.txt' para ver los eliminados.")
     else:
+        time.sleep(1)
         print("\n🔍 Proceso de listado completo. No se eliminó ningún archivo y no se generó ningún registro.")
 
 if __name__ == "__main__":
