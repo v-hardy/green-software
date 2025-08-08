@@ -262,6 +262,18 @@ def ruta_en_archivo(ruta, archivo_txt):
                 return True
     return False
 
+def limpiar(directorio1, directorio2, solo_listar):
+    if not solo_listar:
+        for archivo_txt in (f"duplicados_entre_directorios.txt",
+                        f"hashes_de_{directorio1}.txt",
+                        f"hashes_de_{directorio1}_conservados.txt",
+                        f"hashes_de_{directorio1}_duplicados.txt",
+                        f"hashes_de_{directorio2}.txt",
+                        f"hashes_de_{directorio2}_conservados.txt",
+                        f"hashes_de_{directorio2}_duplicados.txt"):
+            if os.path.exists(archivo_txt):
+                os.remove(archivo_txt)
+
 def procesar_directorio(directorio, solo_listar):
     time.sleep(1) 
     print(f"\n📁 Iniciando procesamiento de {directorio}...")
@@ -318,8 +330,57 @@ def procesar_directorios(directorio1, directorio2, solo_listar):
         
     eliminar_duplicados_entre_directorios(directorio1, directorio2, solo_listar, duplicados_en_1y2)    
     
-    #deberia actualizar los conservados de cada directorio quitando los eliminados
-    #podria agregar para borrar .txt's por defecto en cuenta regresiva y con un ENTER interrumpir
+    limpiar(directorio1, directorio2, solo_listar)
+    #A MEJORAR: deberia actualizar los conservados de cada directorio quitando los eliminados
+
+def cierre_final(se_muestra_o_no):
+    if se_muestra_o_no == False :
+        time.sleep(3)
+        print("\nThank you for supporting")
+        print("Sustainable software practices")
+        print("""─────────────────────░███░
+────────────────────░█░░░█░
+───────────────────░█░░░░░█░
+──────────────────░█░░░░░█░
+───────────░░░───░█░░░░░░█░
+──────────░███░──░█░░░░░█░
+────────░██░░░██░█░░░░░█░
+───────░█░░█░░░░██░░░░░█░
+─────░██░░█░░░░░░█░░░░█░
+────░█░░░█░░░░░░░██░░░█░
+───░█░░░░█░░░░░░░░█░░░█░
+───░█░░░░░█░░░░░░░░█░░░█░
+───░█░░█░░░█░░░░░░░░█░░█░
+──░█░░░█░░░░██░░░░░░█░░█░
+──░█░░░░█░░░░░██░░░█░░░█░
+──░█░█░░░█░░░░░░███░░░░█░
+─░█░░░█░░░██░░░░░█░░░░░█░
+─░█░░░░█░░░░█████░░░░░█░
+─░█░░░░░█░░░░░░░█░░░░░█░
+─░█░█░░░░██░░░░█░░░░░█░
+──░█░█░░░░░████░░░░██░
+──░█░░█░░░░░░░█░░██░█░
+───░█░░██░░░██░░█░░░█░
+────░██░░███░░██░█░░█░
+─────░██░░░███░░░█░░░█░
+───────░███░░░░░░█░░░█░
+───────░█░░░░░░░░█░░░█░
+───────░█░░░░░░░░░░░░█░
+───────░█░░░░░░░░░░░░░█░
+───────░█░░░░░░░░░░░░░█░
+─████──░█░████░░░░░░░░█░
+─█──█──████──████░░░░░█░
+─█──█──█──█──█──████████
+─█──█──████──█──█──────█
+─█──█──█──█────██──██──█
+─█──████──█──█──█──────█
+─█─────█──█──█──█──█████
+─███████──████──█──────█
+───────████──██████████
+""")
+    else:
+        print("\n📣 NOTA: Ganate un like eliminando tus archivos duplicados.\n")
+
 
 def main():
     argumentos = procesar_argumentos()
@@ -335,12 +396,16 @@ def main():
 
     procesar_directorios(argumentos.directorio1, argumentos.directorio2, argumentos.solo_listar)
  
+    #podria agregar para borrar .txt's por defecto en cuenta regresiva y con un ENTER interrumpir
+
     if os.path.exists("registro_eliminados.txt"):
         time.sleep(1)
         print("\n✅ Proceso completo. Consulta 'registro_eliminados.txt' para ver los eliminados.")
     else:
         time.sleep(1)
-        print("\n🔍 Proceso de listado completo. No se eliminó ningún archivo y no se generó ningún registro.")
+        print("\n🔍 Proceso de listado completo. No se eliminó ningún archivo.")
+
+    cierre_final(argumentos.solo_listar)
 
 if __name__ == "__main__":
     main()
